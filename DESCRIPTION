@@ -1,0 +1,22 @@
+Package: RenalIQ
+Type: Application
+Title: Renal Clinic Portal
+Version: 0.1.0
+Author: Seerapani
+Description: Shiny app for Renal Clinic management.
+Depends:
+    R (>= 4.0.0)
+Imports:
+    shiny,
+    bslib,
+    pool,
+    DBI,
+    RPostgres,
+    dplyr,
+    lubridate,
+    stringr,
+    DT,
+    shinyjs,
+    rhandsontable,
+    jsonlite,
+    glue
