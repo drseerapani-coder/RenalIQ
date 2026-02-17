@@ -16,12 +16,12 @@ RUN R -e "install.packages(c('shiny', 'bslib', 'pool', 'DBI', 'RPostgres', 'dply
 RUN mkdir /app
 WORKDIR /app
 
-# Copy your app files into the container
-# This includes app.R and ca-certificate.crt
+# Copy your app files into the container (app.R and ca-certificate.crt)
 COPY . /app
 
 # Expose the port DigitalOcean expects (8080)
 EXPOSE 8080
 
-# Run the app on port 8080 and bind to all network interfaces
+# Run the app on port 8080 and bind to all network interfaces (0.0.0.0)
+# This is the exact command DigitalOcean needs to pass Health Checks
 CMD ["R", "-e", "shiny::runApp('/app', host='0.0.0.0', port=8080)"]

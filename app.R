@@ -12,6 +12,21 @@ library(rhandsontable)
 library(jsonlite)
 library(glue)
 
+lab_config <- list(
+  "Renal / Electrolytes" = c("Creatinine", "Blood urea", "BUN", "Potassium", "Sodium", "Bicarbonate", "Uric Acid"),
+  "Minerals / Bone"      = c("Calcium", "Phosphorus", "Magnesium", "iPTH", "Vitamin D"),
+  "Liver Function"       = c("Bilirubin", "Indirect Bili", "Direct Bili", "ALT", "AST", "ALP", "GGT", "Albumin"),
+  "Hematology"           = c("Hb", "MCV", "TLC", "ANC", "ALC", "Eos", "Platelets"),
+  "Metabolic / Iron"     = c("HbA1C", "Total Cholesterol", "LDL", "Triglycerides", "Ferritin", "Transferrin saturation index", "B12", "Folate"),
+  "Inflammatory/Misc"    = c("CRP", "ESR", "LDH", "CPK", "TSH", "T3", "T4"),
+  "Immunosuppression"    = c("Tacrolimus", "Ciclosporin", "Everolimus"),
+  "Urine / Cultures"     = c("CUE:Protein", "CUE:Blood", "CUE:RBC", "CUE:WBC", "Urine PCR", "Urine MACR", "Urine Culture", "Blood culture"),
+  "Specialized"          = c("Serum protein electrophoresis", "ANA-IFA", "ANA-Profile", "PR3 ANCA", "MPO ANCA", "US Abdomen")
+)
+
+
+source("mod_lab_ingestion.R")
+
 # Define the null-coalescing operator
 `%||%` <- function(a, b) if (!is.null(a)) a else b
 # ==============================================================================
@@ -33,7 +48,7 @@ pool <- tryCatch({
     user     = Sys.getenv("DO_DB_USER"),
     password = Sys.getenv("DO_DB_PASSWORD"),
     port     = as.integer(Sys.getenv("DO_DB_PORT", unset = "25060")),
-    sslrootcert = "ca-certificate.crt",
+    sslrootcert = Sys.getenv("DO_SSLROOTCERT", unset = "ca-certificate.crt"),
     sslmode  = "require"
   )
 }, error = function(e) {
@@ -42,6 +57,9 @@ pool <- tryCatch({
   NULL 
 })
 
+onStop(function() {
+  poolClose(pool)
+})
 
 
 if (is.null(pool)) {
@@ -66,17 +84,7 @@ if (is.null(pool)) {
 }
 
 
-lab_config <- list(
-  "Renal / Electrolytes" = c("Creatinine", "Blood urea", "BUN", "Potassium", "Sodium", "Bicarbonate", "Uric Acid"),
-  "Minerals / Bone"      = c("Calcium", "Phosphorus", "Magnesium", "iPTH", "Vitamin D"),
-  "Liver Function"       = c("Bilirubin", "Indirect Bili", "Direct Bili", "ALT", "AST", "ALP", "GGT", "Albumin"),
-  "Hematology"           = c("Hb", "MCV", "TLC", "ANC", "ALC", "Eos", "Platelets"),
-  "Metabolic / Iron"     = c("HbA1C", "Total Cholesterol", "LDL", "Triglycerides", "Ferritin", "Transferrin saturation index", "B12", "Folate"),
-  "Inflammatory/Misc"    = c("CRP", "ESR", "LDH", "CPK", "TSH", "T3", "T4"),
-  "Immunosuppression"    = c("Tacrolimus", "Ciclosporin", "Everolimus"),
-  "Urine / Cultures"     = c("CUE:Protein", "CUE:Blood", "CUE:RBC", "CUE:WBC", "Urine PCR", "Urine MACR", "Urine Culture", "Blood culture"),
-  "Specialized"          = c("Serum protein electrophoresis", "ANA-IFA", "ANA-Profile", "PR3 ANCA", "MPO ANCA", "US Abdomen")
-)
+
 all_test_names <- unname(unlist(lab_config))
 category_names <- names(lab_config) 
 
@@ -125,11 +133,19 @@ safe_update_input <- function(session, id, value) {
 
 # ==============================================================================
 # 3. UI DEFINITION
-# ==============================================================================
+#
+# 1. Source the module file at the very top of app.R
+source("mod_lab_ingestion.R")
+
 ui <- page_navbar(
-  title = "Comprehensive Clinic Portal",
+  title = span(
+    icon("hospital"), 
+    "Clinic Portal", 
+    uiOutput("header_patient_context", inline = TRUE)
+  ),
   theme = bs_theme(version = 5, bootswatch = "flatly", primary = "#26A69A"),
   id = "main_nav",
+  
   header = tagList(
     useShinyjs(),
     tags$head(tags$style(HTML("
@@ -139,16 +155,48 @@ ui <- page_navbar(
       .meta-text { font-size: 0.8rem; color: #666; display: flex; gap: 10px; }
       .lab-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f1f1f1; }
       .history-warning { background: #fff3cd; color: #856404; padding: 8px; border-radius: 4px; margin-bottom: 10px; font-size: 0.9em; }
-    ")))
+      .nav-spacer { flex-grow: 1; }
+      .patient-badge { margin-left: 15px; padding: 4px 12px; border-radius: 20px; background: rgba(255,255,255,0.2); font-size: 0.85rem; font-weight: 400; }
+    "))),
+    
+    # Global control bar that appears below the navbar when a patient is active
+    uiOutput("global_controls")
   ),
-  nav_panel("Portal", uiOutput("auth_logic"))#,
-  #actionButton("test_db", "Test Connection", class="btn-warning"))
+  
+  # Tab 1: Portal/Registration
+  nav_panel("Portal", uiOutput("auth_logic")),
+  
+  # Tab 2: Lab Ingestion Module
+  nav_panel("Lab Ingestion", 
+            lab_ingestion_ui("lab_ai_module")
+  )
 )
-
 # ==============================================================================
 # 4. SERVER LOGIC
 # ==============================================================================
 server <- function(input, output, session) {
+  
+  # Inside server <- function(input, output, session) { ... }
+  lab_ingestion_server("lab_ai_module", pool, current_pt)
+  
+  output$global_controls <- renderUI({
+    req(current_pt()) # Only show if a patient is selected
+    div(style = "padding: 10px; background: #f8f9fa; border-bottom: 1px solid #ddd;",
+        div(class = "container-fluid d-flex justify-content-between align-items-center",
+            span(strong("Active Patient: "), current_pt()$name),
+            actionButton("switch_patient_btn", "Switch Patient / Close File", 
+                         class = "btn-outline-danger btn-sm", 
+                         icon = icon("user-slash"))
+        )
+    )
+  })
+  
+  output$header_patient_context <- renderUI({
+    req(current_pt())
+    div(class = "patient-badge-nav",
+        icon("user-circle"), 
+        paste0("  ", current_pt()$first_name, " ", current_pt()$last_name))
+  })
   
   # Add this inside your server function
   observeEvent(input$login_btn, {
@@ -275,14 +323,13 @@ server <- function(input, output, session) {
           span(class="mx-2", "|"), 
           span("UHID:", pt$hospital_number)
         ),
-        actionButton("detach_pt", "Switch Patient", class="btn-sm btn-danger")
+        actionButton("switch_patient_btn", "Switch Patient", 
+                     icon = icon("user-friends"), 
+                     class = "btn-warning w-100 mt-3")
     )
   })
   
-  observeEvent(input$detach_pt, { 
-    current_pt(NULL)
-    rx_meds$df <- data.frame(brand_name=character(), generic=character(), dose=character(), freq=character(), route=character(), duration=character()) 
-  })
+  
   
   # --- Module 1: Registration ---
   # --- Module: Registration UI ---
@@ -317,6 +364,12 @@ server <- function(input, output, session) {
   })
   
   output$reg_title <- renderText({ if(is.null(current_pt())) "New Registration" else paste("Editing:", current_pt()$id) })
+  observeEvent(input$switch_patient_btn, {
+    current_pt(NULL)
+    updateTextInput(session, "patient_search", value = "")
+    nav_select("main_nav", "Portal")
+    showNotification("Patient session closed.", type = "message")
+  })
   
   # --- Server Logic: Profile Panel ---
   # --- Server Logic: Profile Panel ---
@@ -346,22 +399,20 @@ server <- function(input, output, session) {
                       value = pt$hospital_number %||% ""),
             
             # Name Row
-            layout_column_wrap(
-              width = 1/2,
+            
+             
               textInput("first_name", "First Name *", value = pt$first_name %||% ""),
-              textInput("last_name", "Last Name *", value = pt$last_name %||% "")
-            ),
+              textInput("last_name", "Last Name *", value = pt$last_name %||% ""),
+            
             
             # DOB and Gender
-            layout_column_wrap(
-              width = 1/2,
               dateInput("dob", "DOB *", 
                         value = if(!is.null(pt$dob)) as.Date(pt$dob) else NA),
               radioButtons("gender", "Gender", 
                            choices = c("male", "female"), 
                            selected = pt$gender %||% "male", 
-                           inline = TRUE)
-            ),
+                           inline = TRUE),
+            
             
             # Contact & Clinical Info
             textInput("phone", "Phone *", value = pt$phone %||% ""),
@@ -370,18 +421,14 @@ server <- function(input, output, session) {
                           value = pt$address1 %||% pt$address %||% "", 
                           rows = 2),
             
-            layout_column_wrap(
-              width = 1/2,
-              textAreaInput("allergies", "Allergies", 
+            textAreaInput("allergies", "Allergies", 
                             value = pt$allergies %||% "NIL", 
                             rows = 1),
               textAreaInput("comments", "Clinical Comments", 
                             value = pt$comments %||% "", 
                             rows = 1)
-            )
-          ),
-          
-          card_footer(
+            ),
+           card_footer(
             div(class = "d-grid gap-2", # Full-width buttons for mobile-friendly tapping
                 actionButton("save_pt", "Save Patient Record", 
                              class = "btn-success btn-lg"), 
@@ -1219,6 +1266,8 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui, server)
+
+
 
 # git add app.R
 # git commit -m "Fix: Forcing explicit DB connection parameters to avoid socket error"
