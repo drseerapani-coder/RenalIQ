@@ -1273,6 +1273,15 @@ server <- function(input, output, session) {
     
     showNotification("New empty note initialized.", type = "message")
   })
+  
+  
+  observe({
+    key_exists <- Sys.getenv("OPENAI_API_KEY") != ""
+    print(paste("OpenAI Key detected:", key_exists))
+  })
+  
+  
+  
 }
 
 shinyApp(ui, server)
