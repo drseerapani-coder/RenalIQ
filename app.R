@@ -11,6 +11,9 @@ library(shinyjs)
 library(rhandsontable)
 library(jsonlite)
 library(glue)
+library(openai)
+library(tesseract)
+library(pdftools)
 
 lab_config <- list(
   "Renal / Electrolytes" = c("Creatinine", "Blood urea", "BUN", "Potassium", "Sodium", "Bicarbonate", "Uric Acid"),
