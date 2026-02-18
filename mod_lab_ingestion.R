@@ -38,7 +38,7 @@ lab_ingestion_ui <- function(id) {
 }
 
 
-lab_ingestion_server <- function(id, pool, current_pt) {
+lab_ingestion_server <- function(id, pool, current_pt,lab_config) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
@@ -160,8 +160,16 @@ lab_ingestion_server <- function(id, pool, current_pt) {
       # 2. RENDER TABLE
       datatable(df, 
                 rownames = FALSE, 
-                options = list(dom = 't', pageLength = 100,
-                               columnDefs = list(list(visible=FALSE, targets=3))), # Hide is_abnormal col
+                options = list(
+                  dom = 't', 
+                  pageLength = 100,
+                  columnDefs = list(
+                    # Centering: target columns 0, 1, and 2 (Name, Value, Date)
+                    list(className = 'dt-center', targets = 0:2),
+                    # Keep is_abnormal hidden
+                    list(visible = FALSE, targets = 3)
+                  )
+                ), 
                 colnames = c("Test Name", "Result", "Date")) %>%
         formatStyle(
           'value', 'is_abnormal',

@@ -138,38 +138,48 @@ safe_update_input <- function(session, id, value) {
 source("mod_lab_ingestion.R")
 
 ui <- page_navbar(
-  title = span(
-    icon("hospital"), 
-    "Clinic Portal", 
-    uiOutput("header_patient_context", inline = TRUE)
-  ),
+  # Top Title Panel
+  title = span(style = "font-weight: 700; color: white;", "Renal IQ - Clinical Portal"),
   theme = bs_theme(version = 5, bootswatch = "flatly", primary = "#26A69A"),
   id = "main_nav",
   
   header = tagList(
     useShinyjs(),
     tags$head(tags$style(HTML("
-      .sticky-banner { position: sticky; top: 0; z-index: 1050; background: #2c3e50; color: white; padding: 10px; border-bottom: 3px solid #26A69A; }
-      .search-item { border-bottom: 1px solid #eee; padding: 10px; background: white; cursor: pointer; }
-      .search-item:hover { background: #f0f7ff; }
-      .meta-text { font-size: 0.8rem; color: #666; display: flex; gap: 10px; }
-      .lab-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f1f1f1; }
-      .history-warning { background: #fff3cd; color: #856404; padding: 8px; border-radius: 4px; margin-bottom: 10px; font-size: 0.9em; }
-      .nav-spacer { flex-grow: 1; }
-      .patient-badge { margin-left: 15px; padding: 4px 12px; border-radius: 20px; background: rgba(255,255,255,0.2); font-size: 0.85rem; font-weight: 400; }
+      /* 1. Navbar Tabs: Black text in one row */
+      .navbar-nav { width: 100%; display: flex; justify-content: flex-start; }
+      .navbar-nav .nav-link { color: black !important; font-weight: 600; font-size: 1.05rem; }
+      .navbar-nav .nav-link.active { color: white !important; background: #26A69A; border-radius: 4px; }
+      
+      /* 2. Brand area adjustment to allow tabs on same row */
+      .navbar-brand { margin-right: 50px; }
+
+      /* 3. Patient Context Line: Directly below the row of tabs */
+      .patient-context-line { 
+        padding: 10px 20px; 
+        background: #ffffff; 
+        color: black; 
+        font-weight: 700; 
+        font-size: 1.1rem;
+        border-bottom: 2px solid #26A69A;
+        margin-bottom: 5px;
+      }
+      
+      /* 4. Remove fixed gaps: Ensure patient profile flows immediately after table */
+      .search-results-container { margin-bottom: 0px !important; }
+      #selected_patient_profile { margin-top: 10px !important; }
     "))),
     
-    # Global control bar that appears below the navbar when a patient is active
-    uiOutput("global_controls")
+    # Selected patient appears here, below the tab row
+    uiOutput("header_patient_context")
   ),
   
-  # Tab 1: Portal/Registration
-  nav_panel("Portal", uiOutput("auth_logic")),
-  
-  # Tab 2: Lab Ingestion Module
-  nav_panel("Lab Ingestion", 
-            lab_ingestion_ui("lab_ai_module")
-  )
+  # Ordered Navigation Buttons 1-5
+  nav_panel("1. Registration", uiOutput("auth_logic")),
+  nav_panel("2. Clinical Notes", div("Notes Content")),
+  nav_panel("3. Lab Entry", div("Lab Entry Content")),
+  nav_panel("4. Mobile Rx", div("Mobile Rx Content")),
+  nav_panel("5. Lab Extraction", lab_ingestion_ui("lab_ai_module"))
 )
 # ==============================================================================
 # 4. SERVER LOGIC
@@ -177,7 +187,7 @@ ui <- page_navbar(
 server <- function(input, output, session) {
   
   # Inside server <- function(input, output, session) { ... }
-  lab_ingestion_server("lab_ai_module", pool, current_pt)
+  lab_ingestion_server("lab_ai_module", pool, current_pt,lab_config)
   
   output$global_controls <- renderUI({
     req(current_pt()) # Only show if a patient is selected
