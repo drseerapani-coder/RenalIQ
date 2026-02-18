@@ -16,18 +16,19 @@ library(tesseract)
 library(pdftools)
 library(shinycssloaders) # For mobile UI feedback
 
-lab_config <- list(
-  "Renal / Electrolytes" = c("Creatinine", "Blood urea", "BUN", "Potassium", "Sodium", "Bicarbonate", "Uric Acid"),
-  "Minerals / Bone"      = c("Calcium", "Phosphorus", "Magnesium", "iPTH", "Vitamin D"),
-  "Liver Function"       = c("Bilirubin", "Indirect Bili", "Direct Bili", "ALT", "AST", "ALP", "GGT", "Albumin"),
-  "Hematology"           = c("Hb", "MCV", "TLC", "ANC", "ALC", "Eos", "Platelets"),
-  "Metabolic / Iron"     = c("HbA1C", "Total Cholesterol", "LDL", "Triglycerides", "Ferritin", "Transferrin saturation index", "B12", "Folate"),
-  "Inflammatory/Misc"    = c("CRP", "ESR", "LDH", "CPK", "TSH", "T3", "T4"),
-  "Immunosuppression"    = c("Tacrolimus", "Ciclosporin", "Everolimus"),
-  "Urine / Cultures"     = c("CUE:Protein", "CUE:Blood", "CUE:RBC", "CUE:WBC", "Urine PCR", "Urine MACR", "Urine Culture", "Blood culture"),
-  "Specialized"          = c("Serum protein electrophoresis", "ANA-IFA", "ANA-Profile", "PR3 ANCA", "MPO ANCA", "US Abdomen")
-)
+# 1. Load the raw data
+lab_targets_raw <- read.csv("lab_targets.csv", stringsAsFactors = FALSE)
+lab_targets_raw$sort_id <- 1:nrow(lab_targets_raw)
 
+# 2. Reconstruct the exact list structure for downstream code
+# This keeps the "Category Name" = c("Test1", "Test2") format
+lab_config <- split(lab_targets_raw$test_name, lab_targets_raw$category)
+
+# 3. Clean up the names (removes the index names added by split)
+lab_config <- lapply(lab_config, as.character)
+
+# Also keep a flat list for the AI
+all_test_names <- lab_targets_raw$test_name
 
 source("mod_lab_ingestion.R")
 
@@ -141,57 +142,189 @@ safe_update_input <- function(session, id, value) {
 # 1. Source the module file at the very top of app.R
 source("mod_lab_ingestion.R")
 
-ui <- page_navbar(
-  # Top Title Panel
-  title = span(style = "font-weight: 700; color: white;", "Renal IQ - Clinical Portal"),
-  theme = bs_theme(version = 5, bootswatch = "flatly", primary = "#26A69A"),
-  id = "main_nav",
-  
-  header = tagList(
-    useShinyjs(),
-    tags$head(tags$style(HTML("
-      /* 1. Navbar Tabs: Black text in one row */
-      .navbar-nav { width: 100%; display: flex; justify-content: flex-start; }
-      .navbar-nav .nav-link { color: black !important; font-weight: 600; font-size: 1.05rem; }
-      .navbar-nav .nav-link.active { color: white !important; background: #26A69A; border-radius: 4px; }
-      
-      /* 2. Brand area adjustment to allow tabs on same row */
-      .navbar-brand { margin-right: 50px; }
+ui <- uiOutput("main_app_container")
 
-      /* 3. Patient Context Line: Directly below the row of tabs */
-      .patient-context-line { 
-        padding: 10px 20px; 
-        background: #ffffff; 
-        color: black; 
-        font-weight: 700; 
-        font-size: 1.1rem;
-        border-bottom: 2px solid #26A69A;
-        margin-bottom: 5px;
-      }
-      
-      /* 4. Remove fixed gaps: Ensure patient profile flows immediately after table */
-      .search-results-container { margin-bottom: 0px !important; }
-      #selected_patient_profile { margin-top: 10px !important; }
-    "))),
-    
-    # Selected patient appears here, below the tab row
-    uiOutput("header_patient_context")
-  ),
-  
-  # Ordered Navigation Buttons 1-5
-  nav_panel("1. Registration", uiOutput("auth_logic")),
-  nav_panel("2. Clinical Notes", div("Notes Content")),
-  nav_panel("3. Lab Entry", div("Lab Entry Content")),
-  nav_panel("4. Mobile Rx", div("Mobile Rx Content")),
-  nav_panel("5. Lab Extraction", lab_ingestion_ui("lab_ai_module"))
-)
+
+# ui <- page_navbar(
+#   title = span(style = "font-weight: 700; color: white;", "Renal IQ - Clinical Portal"),
+#   theme = bs_theme(version = 5, bootswatch = "flatly", primary = "#26A69A"),
+#   id = "main_nav",
+#   
+#   header = tagList(
+#     useShinyjs(),
+#     tags$head(tags$style(HTML("
+#       .navbar-nav { width: 100%; display: flex; justify-content: flex-start; }
+#       .navbar-nav .nav-link { color: black !important; font-weight: 600; font-size: 1.05rem; }
+#       .navbar-nav .nav-link.active { color: white !important; background: #26A69A; border-radius: 4px; }
+#       .patient-context-line { padding: 10px 20px; background: #ffffff; border-bottom: 2px solid #26A69A; }
+#       /* Style for the sidebar visit tiles */
+#       .visit-tile-btn { text-align: left !important; margin-bottom: 5px; }
+#       /* Slick Table Customization */
+# table.dataTable thead th {
+#   background-color: #26A69A !important;
+#   color: white !important;
+#   font-weight: 500;
+#   border: none !important;
+#   text-transform: uppercase;
+#   font-size: 0.75rem;
+# }
+# 
+# .dataTables_scrollBody {
+#   border-bottom: 1px solid #eee !important;
+# }
+# 
+# /* Reduced cell padding for density */
+# table.dataTable tbody td {
+#   padding: 8px 12px !important;
+#   font-family: 'Inter', sans-serif;
+#   border-bottom: 1px solid #f0f0f0 !important;
+# }
+#     "))),
+#     uiOutput("auth_screen_overlay"),
+#     uiOutput("header_patient_context")
+#   ),
+#   
+#   nav_panel("1. Registration", uiOutput("reg_ui")),
+#   
+#   # --- CONNECTED: Clinical Notes now uses the server-side UI ---
+#   nav_panel("2. Clinical Notes", uiOutput("notes_ui")),
+#   
+#   nav_panel("3. Lab Entry",
+#             card(
+#               card_header(
+#                 div(class = "d-flex justify-content-between align-items-center",
+#                     span("Clinical Lab Flowsheet"),
+#                     div(
+#                       actionButton("open_add_lab", "Add New Date", class = "btn-success me-2", icon = icon("plus")),
+#                       actionButton("rename_col_btn", "Edit Date Header", class = "btn-outline-dark me-2"),
+#                       actionButton("save_flowsheet", "Save All Changes", class = "btn-primary", icon = icon("save"))
+#                     ))
+#               ),
+#               card_body(
+#                 rHandsontableOutput("history_table") %>% withSpinner(color="#26A69A")
+#               )
+#             )
+#   ),
+#   
+#   nav_panel("4. Mobile Rx", uiOutput("rx_ui")),
+#   
+#   nav_panel("5. Lab Extraction",
+#             card(
+#               card_header("AI Lab Ingestion"),
+#               fileInput(NS("lab_ai_module", "file_input"), "Upload PDF/Image"),
+#               DTOutput(NS("lab_ai_module", "results_table"))
+#             )
+#   )
+# )
+
 # ==============================================================================
 # 4. SERVER LOGIC
 # ==============================================================================
 server <- function(input, output, session) {
   
+  # 1. AUTHENTICATION STATE
+  logged_in <- reactiveVal(FALSE)
+  login_error <- reactiveVal("")
+  
+  # 2. MAIN UI TOGGLE
+  output$main_app_container <- renderUI({
+    if (!logged_in()) {
+      # LOGIN SCREEN VIEW
+      page_fillable(
+        theme = bs_theme(version = 5, bootswatch = "flatly", primary = "#26A69A"),
+        div(style = "display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f7f6;",
+            card(width = "400px", class = "shadow-lg",
+                 card_header(class = "bg-primary text-white text-center", h3("Renal IQ", class="mb-0")),
+                 card_body(
+                   textInput("u_id", "Username"),
+                   passwordInput("u_pw", "Password"),
+                   actionButton("login_btn", "Secure Login", class = "btn-primary w-100 btn-lg"),
+                   uiOutput("login_err_msg")
+                 )
+            )
+        )
+      )
+    } else {
+      # AUTHENTICATED APP VIEW (Your Original Navbar)
+      page_navbar(
+        title = span(style = "font-weight: 700; color: white;", "Renal IQ - Clinical Portal"),
+        theme = bs_theme(version = 5, bootswatch = "flatly", primary = "#26A69A"),
+        id = "main_nav",
+        
+        header = tagList(
+          useShinyjs(),
+          tags$head(tags$style(HTML("
+            .navbar-nav { width: 100%; display: flex; justify-content: flex-start; }
+            .navbar-nav .nav-link { color: black !important; font-weight: 600; font-size: 1.05rem; }
+            .navbar-nav .nav-link.active { color: white !important; background: #26A69A; border-radius: 4px; }
+            .patient-context-line { padding: 10px 20px; background: #ffffff; border-bottom: 2px solid #26A69A; }
+          "))),
+          uiOutput("header_patient_context") # Shows patient name & Logout button
+        ),
+        
+        nav_panel("1. Registration", uiOutput("reg_ui")),
+        nav_panel("2. Clinical Notes", uiOutput("notes_ui")),
+        nav_panel("3. Lab Entry", 
+                  card(
+                    card_header(
+                      div(class = "d-flex justify-content-between align-items-center",
+                          span("Clinical Lab Flowsheet"),
+                          div(
+                            actionButton("open_add_lab", "Add New Date", class = "btn-success me-2", icon = icon("plus")),
+                            actionButton("rename_col_btn", "Edit Date Header", class = "btn-outline-dark me-2"),
+                            actionButton("save_flowsheet", "Save All Changes", class = "btn-primary", icon = icon("save"))
+                          ))
+                    ),
+                    card_body(rHandsontableOutput("history_table") %>% withSpinner(color="#26A69A"))
+                  )
+        ),
+        nav_panel("4. Mobile Rx", uiOutput("rx_ui")),
+        nav_panel("5. Lab Extraction", 
+                  card(
+                    card_header("AI Lab Ingestion"),
+                    fileInput(NS("lab_ai_module", "file_input"), "Upload PDF/Image"),
+                    DTOutput(NS("lab_ai_module", "results_table"))
+                  )
+        )
+      )
+    }
+  })
+  
+  # 3. LOGIN BUTTON LOGIC
+  observeEvent(input$login_btn, {
+    # Replace with your actual credentials or DB check
+    if (input$u_id == "admin" && input$u_pw == "password123") {
+      logged_in(TRUE)
+    } else {
+      login_error("Invalid username or password.")
+    }
+  })
+  
+  output$login_err_msg <- renderUI({
+    req(login_error() != "")
+    p(login_error(), style = "color: red; margin-top: 10px; text-align: center;")
+  })
+  
+  # 4. PATIENT CONTEXT & LOGOUT
+  output$header_patient_context <- renderUI({
+    req(logged_in())
+    # Content only shows if a patient is actually selected in the system
+    pt_name <- if(!is.null(current_pt())) paste("Active Patient:", current_pt()$name) else "No Patient Selected"
+    
+    div(class = "patient-context-line d-flex justify-content-between align-items-center",
+        span(style = "font-weight: 700; color: #26A69A;", pt_name),
+        actionButton("logout_btn", "Logout", class = "btn-outline-danger btn-sm")
+    )
+  })
+  
+  observeEvent(input$logout_btn, {
+    logged_in(FALSE)
+    current_pt(NULL) # Clear patient session on logout
+  })
+
+  
   # Inside server <- function(input, output, session) { ... }
-  lab_ingestion_server("lab_ai_module", pool, current_pt,lab_config)
+  lab_ingestion_server("lab_ai_module", pool, current_pt)
   
   output$global_controls <- renderUI({
     req(current_pt()) # Only show if a patient is selected
@@ -205,12 +338,7 @@ server <- function(input, output, session) {
     )
   })
   
-  output$header_patient_context <- renderUI({
-    req(current_pt())
-    div(class = "patient-badge-nav",
-        icon("user-circle"), 
-        paste0("  ", current_pt()$first_name, " ", current_pt()$last_name))
-  })
+  
   
   # Add this inside your server function
   observeEvent(input$login_btn, {
@@ -285,6 +413,54 @@ server <- function(input, output, session) {
       message("Lab Error: ", e$message)
     })
   }
+  output$manual_lab_inputs <- renderUI({
+    lapply(all_test_names, function(t) {
+      numericInput(paste0("lab_", make.names(t)), t, value = NA)
+    })
+  })
+  # Trigger the Popup Modal
+  observeEvent(input$open_add_lab, {
+    # Load the lab targets for grouping
+    lab_targets_raw <- read.csv("lab_targets.csv", stringsAsFactors = FALSE)
+    
+    showModal(modalDialog(
+      title = "Lab Entry & History Lookup",
+      size = "l",
+      # We use a standard dateInput. 
+      # If it still looks like text, it's usually because 'shiny' didn't load its dependencies properly.
+      dateInput("modal_lab_date", "Step 1: Select Date", 
+                value = Sys.Date()), 
+      
+      hr(),
+      h6("Step 2: Enter or Edit Values (Existing data will load automatically)", 
+         class = "text-muted mb-3"),
+      
+      div(style = "max-height: 50vh; overflow-y: auto; padding: 10px; border: 1px solid #eee; border-radius: 5px;",
+          lapply(unique(lab_targets_raw$category), function(cat) {
+            tagList(
+              div(style = "background:#f1f1f1; padding:5px 10px; font-weight:bold; margin-top:10px;", cat),
+              layout_column_wrap(
+                width = 1/3,
+                lapply(lab_targets_raw$test_name[lab_targets_raw$category == cat], function(t) {
+                  numericInput(paste0("lab_", make.names(t)), t, value = NA)
+                })
+              )
+            )
+          })
+      ),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("save_labs_modal", "Save All to Flowsheet", class="btn-success")
+      )
+    ))
+  })
+  
+  # Close modal after saving
+  observeEvent(input$save_labs, {
+    # ... (Your existing DB save logic) ...
+    removeModal()
+    showNotification("Record added successfully", type = "message")
+  })
   
   # --- Authentication Router ---
   output$auth_logic <- renderUI({
@@ -343,11 +519,13 @@ server <- function(input, output, session) {
     )
   })
   
+  output$manual_lab_inputs <- renderUI({
+    lapply(all_test_names, function(t) {
+      numericInput(paste0("lab_", make.names(t)), t, value = NA)
+    })
+  })  
   
-  
-  # --- Module 1: Registration ---
-  # --- Module: Registration UI ---
-  # --- Module: Registration UI --
+# --- Module: Registration UI --
   
   # Define the search reactive
   
@@ -746,12 +924,12 @@ server <- function(input, output, session) {
       sidebar = sidebar(
         title = "Visit History",
         width = 300,
-        # 1. Action button now placed ABOVE the visit history
+        # Action button to clear fields for a new record
         actionButton("new_visit_btn", "Start New Empty Note", 
                      class="btn-success w-100 mb-3", 
                      icon = icon("plus")),
         hr(),
-        # 2. Visit History Tiles
+        # Scrollable container for the past visit tiles
         uiOutput("visit_tiles_ui"), 
         hr(),
         uiOutput("delete_visit_ui")
@@ -765,18 +943,19 @@ server <- function(input, output, session) {
               span(class="badge bg-secondary", paste("PID:", current_pt()$id)))
         ),
         
-        # Vitals Entry Section
+        # Vitals Entry Section - Now 1/5 width to accommodate Follow-up
         layout_column_wrap(
-          width = 1/4,
+          width = 1/5,
           textInput("v_bp", "BP (mmHg)", placeholder = "120/80"),
           numericInput("v_hr", "Pulse (bpm)", value = NA),
           numericInput("v_weight", "Weight (kg)", value = NA),
-          textInput("v_temp", "Temp (F)", placeholder = "98.4")
+          textInput("v_temp", "Temp (F)", placeholder = "98.4"),
+          dateInput("v_followup", "Follow-up Date", value = NA) # REINSTATED
         ),
         
         hr(),
-        
-        # Examination & Plan (Occupies full remaining width/height)
+        br(),
+        # Examination & Plan
         div(style = "flex-grow: 1; display: flex; flex-direction: column;",
             textAreaInput("clinic_notes", "Examination & Plan", 
                           rows = 18, width = "100%", 
@@ -834,50 +1013,111 @@ server <- function(input, output, session) {
     vid <- input$select_visit
     req(vid)
     
-    # Update State
+    # 1. Update global state so the app knows which record we are editing
     note_state$active_visit_id <- vid
     
-    # Fetch specific record
+    # 2. Fetch specific record from visitsmodule table
     res <- dbGetQuery(pool, "SELECT visit_date, visit_json FROM visitsmodule WHERE id = $1", list(vid))
     req(nrow(res) > 0)
     
+    # Store the date in state for the header display
     note_state$active_visit_date <- as.character(as.Date(res$visit_date[1], origin = "1970-01-01"))
     
-    # Parse JSON Safely
+    # 3. Parse JSON Safely
+    # Your prior data structure: { "vitals": {...}, "clinic_notes": "...", "followup_date": "..." }
     data <- tryCatch({
       fromJSON(res$visit_json[1])
-    }, error = function(e) list(vitals = list(), clinic_notes = ""))
+    }, error = function(e) list(vitals = list(), clinic_notes = "", followup_date = NULL))
     
-    # Update UI Inputs
+    # 4. Update UI Inputs with the retrieved data
     updateTextInput(session, "v_bp", value = data$vitals$bp %||% "")
     updateNumericInput(session, "v_hr", value = data$vitals$hr %||% NA)
     updateNumericInput(session, "v_weight", value = data$vitals$weight %||% NA)
     updateTextInput(session, "v_temp", value = data$vitals$temp %||% "")
     updateTextAreaInput(session, "clinic_notes", value = data$clinic_notes %||% "")
+    
+    # 5. Populate Follow-up Date specifically
+    if(!is.null(data$followup_date) && data$followup_date != "") {
+      updateDateInput(session, "v_followup", value = as.Date(data$followup_date))
+    } else {
+      updateDateInput(session, "v_followup", value = NA)
+    }
   })
   
   # Sidebar Table with Clickable Dates
   output$visit_history_table <- renderDT({
     req(current_pt())
     
-    df <- dbGetQuery(pool, 
-                     "SELECT id, visit_date FROM visitsmodule 
-                    WHERE patient_id::text = $1 ORDER BY visit_date DESC", 
-                     list(as.character(current_pt()$id)))
+    # 1. Fetch data and Join with targets to identify abnormal values
+    # We use the 'labs' table for clinical data and 'lab_targets' for ranges
+    query <- "
+    SELECT l.test_name, l.test_date, l.num_val, l.value_text, 
+           t.low_limit, t.high_limit
+    FROM labs l
+    LEFT JOIN lab_targets t ON l.test_name = t.test_name
+    WHERE l.patient_id::text = $1
+    ORDER BY l.test_date DESC
+  "
+    df <- dbGetQuery(pool, query, list(as.character(current_pt()$id)))
     
     if(nrow(df) == 0) return(NULL)
     
-    df_display <- df %>%
-      rowwise() %>%
+    # 2. Prep data for pivoting
+    df_clean <- df %>%
       mutate(
-        # Date is now a clickable link
-        Date = sprintf('<a href="#" onclick="Shiny.setInputValue(\'select_visit\', %d, {priority:\'event\'}); return false;">%s</a>', 
-                       id, as.character(as.Date(visit_date, origin = "1970-01-01")))
-      ) %>%
-      select(Date)
+        # Format Date for slick header
+        fmt_date = format(as.Date(test_date), "%d %b %y"),
+        # Logic for Red text: if outside limits, wrap in a span
+        is_abnormal = case_when(
+          !is.na(num_val) & !is.na(high_limit) & num_val > high_limit ~ TRUE,
+          !is.na(num_val) & !is.na(low_limit) & num_val < low_limit ~ TRUE,
+          TRUE ~ FALSE
+        ),
+        # Display value: Priority to Number, then Text
+        display_val = ifelse(!is.na(num_val), as.character(num_val), value_text)
+      )
     
-    datatable(df_display, escape = FALSE, selection = 'none', rownames = FALSE,
-              options = list(dom = 'tp', pageLength = 10, columnDefs = list(list(className = 'dt-left', targets = "_all"))))
+    # 3. Pivot Wide: Tests as Rows, Dates as Columns
+    df_wide <- df_clean %>%
+      select(test_name, fmt_date, display_val) %>%
+      tidyr::pivot_wider(names_from = fmt_date, values_from = display_val)
+    
+    # 4. Create the Slick Table
+    datatable(
+      df_wide,
+      escape = FALSE,
+      selection = 'none',
+      rownames = FALSE,
+      extensions = 'FixedColumns',
+      options = list(
+        dom = 't',               # Minimalist: Table only, no search/info
+        scrollX = TRUE,          # Horizontal scroll for dates
+        scrollY = "500px",       # Vertical scroll for many tests
+        scrollCollapse = TRUE,
+        fixedColumns = list(leftColumns = 1), # Freeze test names on left
+        pageLength = 100,
+        columnDefs = list(
+          # Justify Test Names to the left, and values to the center
+          list(className = 'dt-left', targets = 0),
+          list(className = 'dt-center', targets = "_all", width = '80px') # Reduced cell width
+        )
+      )
+    ) %>%
+      # Styling: Slick Grey Row Headers
+      formatStyle(
+        columns = 1,
+        fontWeight = '600',
+        backgroundColor = '#fcfcfc',
+        borderRight = '2px solid #eee'
+      ) %>%
+      # Logic: Apply Red color to abnormal values globally
+      # Note: This logic targets the HTML class we can inject via the query
+      formatStyle(
+        columns = names(df_wide)[-1],
+        valueColumns = names(df_wide)[-1],
+        color = styleInterval(c(-Inf, Inf), c('red', 'red')), # Simplified logic or use specific CSS
+        fontWeight = '500'
+      )
   })
   
   # Delete Button UI with Conditional Rendering
@@ -921,12 +1161,310 @@ server <- function(input, output, session) {
       showNotification(paste("Error during deletion:", e$message), type = "error")
     })
   })
+  observeEvent(input$save_note, {
+    req(current_pt())
+    
+    # Construct the JSON payload to match your previous format
+    visit_data_list <- list(
+      vitals = list(
+        bp = input$v_bp,
+        hr = input$v_hr,
+        weight = input$v_weight,
+        temp = input$v_temp
+      ),
+      clinic_notes = input$clinic_notes,
+      followup_date = as.character(input$v_followup) # Added to JSON
+    )
+    
+    json_payload <- toJSON(visit_data_list, auto_unbox = TRUE)
+    
+    tryCatch({
+      if (is.null(note_state$active_visit_id)) {
+        # INSERT New Record
+        dbExecute(pool, 
+                  "INSERT INTO visitsmodule (patient_id, visit_date, visit_json, created_at) VALUES ($1, $2, $3, $4)",
+                  list(as.character(current_pt()$id), Sys.Date(), json_payload, Sys.time())
+        )
+      } else {
+        # UPDATE Existing Record
+        dbExecute(pool, 
+                  "UPDATE visitsmodule SET visit_json = $1, created_at = $2 WHERE id = $3",
+                  list(json_payload, Sys.time(), note_state$active_visit_id)
+        )
+      }
+      showNotification("Record Saved Successfully", type = "message")
+    }, error = function(e) {
+      showNotification(paste("Database Error:", e$message), type = "error")
+    })
+  })
   
   
   
   
   
   # --- Module 2: Labs ---
+  # Reactive to fetch and pivot lab data
+  lab_history_pivot <- reactive({
+    req(current_pt())
+    
+    # Fetch all labs for current patient
+    df <- dbGetQuery(pool, glue_sql("
+      SELECT test_name, test_date, num_val, value_text 
+      FROM labs 
+      WHERE patient_id::text = {as.character(current_pt()$id)}
+      ORDER BY test_date DESC
+    ", .con = pool))
+    
+    if(nrow(df) == 0) return(NULL)
+    
+    # 1. Format the value for display (Priority: Number, then Text)
+    # 2. Convert Date to a pretty string for the column header
+    df_clean <- df %>%
+      mutate(
+        display_val = ifelse(!is.na(num_val), as.character(num_val), value_text),
+        test_date = format(as.Date(test_date), "%d %b %y")
+      ) %>%
+      select(test_name, test_date, display_val)
+    
+    # Pivot from Long to Wide
+    df_wide <- df_clean %>%
+      tidyr::pivot_wider(
+        names_from = test_date, 
+        values_from = display_val,
+        values_fn = list(display_val = ~ .[1]) # Handles accidental duplicates
+      )
+    
+    return(df_wide)
+  })
+  
+  # Render the DT with Fixed Columns
+  # 1. Create a reactive to handle the pivot and data structure
+  lab_flowsheet_data <- reactive({
+    req(current_pt())
+    
+    # Fetch data
+    df <- dbGetQuery(pool, "
+    SELECT test_name, test_date, num_val 
+    FROM labs 
+    WHERE patient_id::text = $1 
+    ORDER BY test_date DESC", list(as.character(current_pt()$id)))
+    
+    if(nrow(df) == 0) return(NULL)
+    
+    # Pivot Wide: Dates become columns
+    df_wide <- df %>%
+      mutate(fmt_date = format(as.Date(test_date), "%d %b %y")) %>%
+      select(test_name, fmt_date, num_val) %>%
+      tidyr::pivot_wider(names_from = fmt_date, values_from = num_val)
+    
+    return(df_wide)
+  })
+  
+  # 2. Render the editable table
+  
+  # Reactive to prepare categorized data
+  # 1. Reactive to prepare data in the exact CSV order
+  # Prepare categorized data using factors to preserve CSV order
+  categorized_lab_data <- reactive({
+    req(current_pt())
+    
+    # Fetch lab results
+    labs_df <- dbGetQuery(pool, "SELECT test_name, test_date, num_val FROM labs WHERE patient_id::text = $1", 
+                          list(as.character(current_pt()$id)))
+    
+    # Load reference order from CSV
+    lab_targets_raw <- read.csv("lab_targets.csv", stringsAsFactors = FALSE)
+    lab_targets_raw$sort_id <- 1:nrow(lab_targets_raw)
+    
+    if(nrow(labs_df) == 0) {
+      # If no data, return a template based on CSV
+      return(lab_targets_raw %>% select(category, test_name) %>% mutate(placeholder = NA))
+    }
+    
+    # Join, Factorize for order, and Pivot
+    df_wide <- labs_df %>%
+      inner_join(lab_targets_raw, by = "test_name") %>%
+      mutate(
+        fmt_date = format(as.Date(test_date), "%d %b %y"),
+        category = factor(category, levels = unique(lab_targets_raw$category))
+      ) %>%
+      select(category, test_name, fmt_date, num_val) %>%
+      tidyr::pivot_wider(names_from = fmt_date, values_from = num_val) %>%
+      # Ensure test names stay in CSV order after pivot
+      left_join(lab_targets_raw %>% select(test_name, sort_id), by = "test_name") %>%
+      arrange(sort_id) %>%
+      select(-sort_id)
+    
+    return(df_wide)
+  })
+  
+  output$history_table <- renderRHandsontable({
+    df <- categorized_lab_data()
+    req(df)
+    
+    rhandsontable(df, stretchH = "all", rowHeaders = FALSE, height = 600) %>%
+      hot_col(col = "category", readOnly = TRUE, width = 140) %>%
+      hot_col(col = "test_name", readOnly = TRUE, width = 160) %>%
+      hot_table(fixedColumnsLeft = 2, highlightCol = TRUE, highlightRow = TRUE) %>%
+      hot_cols(renderer = "
+      function (instance, td, row, col, prop, value, cellProperties) {
+        Handsontable.renderers.NumericRenderer.apply(this, arguments);
+        if (col <= 1) { 
+          td.style.background = '#fcfcfc'; 
+          td.style.fontWeight = 'bold';
+        }
+        if (col > 1) { td.style.textAlign = 'center'; }
+      }
+    ")
+  })
+  observeEvent(input$open_add_lab, {
+    # We read the raw file to get category groupings
+    lab_targets_raw <- read.csv("lab_targets.csv", stringsAsFactors = FALSE)
+    
+    showModal(modalDialog(
+      title = "Add/Edit Labs for Specific Date",
+      size = "l",
+      # This ID triggers the 'loader' logic above
+      dateInput("modal_lab_date", "Observation Date", value = Sys.Date()), 
+      hr(),
+      div(style = "max-height: 55vh; overflow-y: auto; padding: 10px;",
+          lapply(unique(lab_targets_raw$category), function(cat) {
+            tagList(
+              h6(cat, style="background:#f8f9fa; padding:8px; border-left: 4px solid #26A69A; font-weight: bold;"),
+              layout_column_wrap(
+                width = 1/3,
+                lapply(lab_targets_raw$test_name[lab_targets_raw$category == cat], function(t) {
+                  # These IDs must match the naming convention in the loader logic
+                  numericInput(paste0("lab_", make.names(t)), t, value = NA)
+                })
+              )
+            )
+          })
+      ),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("save_labs_modal", "Save to Flowsheet", class="btn-success")
+      )
+    ))
+  })
+  # Logic to load existing data into the Modal when a date is selected
+  observeEvent(input$modal_lab_date, {
+    req(current_pt(), input$modal_lab_date)
+    
+    # 1. Fetch any existing results for this specific date and patient
+    existing_labs <- dbGetQuery(pool, 
+                                "SELECT test_name, num_val FROM labs WHERE patient_id::text = $1 AND test_date = $2",
+                                list(as.character(current_pt()$id), as.character(input$modal_lab_date))
+    )
+    
+    # 2. Iterate through all possible tests from your CSV config
+    # 'lab_targets_raw' must be available in the server scope
+    lapply(lab_targets_raw$test_name, function(t) {
+      input_id <- paste0("lab_", make.names(t))
+      
+      # Check if this specific test has a value in the DB results
+      match_row <- existing_labs[existing_labs$test_name == t, ]
+      
+      if (nrow(match_row) > 0) {
+        # Data exists -> Update with DB value
+        updateNumericInput(session, input_id, value = match_row$num_val[1])
+      } else {
+        # No data -> Clear the field to NA
+        updateNumericInput(session, input_id, value = NA)
+      }
+    })
+  })
+  observeEvent(input$save_flowsheet, {
+    req(input$history_table)
+    
+    # Convert RHT back to a data frame
+    df_edited <- hot_to_r(input$history_table)
+    
+    # Pivot back to LONG format for DB storage
+    df_long <- df_edited %>%
+      tidyr::pivot_longer(cols = -test_name, names_to = "test_date", values_to = "num_val") %>%
+      filter(!is.na(num_val)) %>%
+      mutate(
+        patient_id = as.character(current_pt()$id),
+        test_date = as.Date(test_date, format = "%d %b %y"),
+        created_at = Sys.time()
+      )
+    
+    # DB Update logic (Upsert)
+    tryCatch({
+      dbWriteTable(pool, "stg_flowsheet", df_long, temporary = TRUE, overwrite = TRUE)
+      dbExecute(pool, "
+      INSERT INTO labs (patient_id, test_date, test_name, num_val, created_at)
+      SELECT patient_id, test_date, test_name, num_val, created_at FROM stg_flowsheet
+      ON CONFLICT (patient_id, test_date, test_name) 
+      DO UPDATE SET num_val = EXCLUDED.num_val, created_at = EXCLUDED.created_at
+    ")
+      showNotification("Flowsheet saved successfully!", type = "message")
+    }, error = function(e) {
+      showNotification(paste("Save Error:", e$message), type = "error")
+    })
+  })
+  # 1. Update the Rename Logic
+  observeEvent(input$confirm_rename, {
+    req(input$col_to_rename, input$new_col_date)
+    
+    old_date_str <- input$col_to_rename # e.g., "18 Feb 26"
+    new_date_val <- input$new_col_date   # e.g., 2026-02-19
+    
+    # Convert the column name (string) back to a real Date object for the SQL query
+    old_date_val <- as.Date(old_date_str, format = "%d %b %y")
+    
+    tryCatch({
+      # Update the database
+      dbExecute(pool, "
+      UPDATE labs 
+      SET test_date = $1 
+      WHERE patient_id::text = $2 AND test_date = $3",
+                list(new_date_val, as.character(current_pt()$id), old_date_val)
+      )
+      
+      removeModal()
+      showNotification("Date header updated in database.", type = "message")
+      
+      # 2. TRIGGER REFRESH: 
+      # We clear the active patient and re-set it to force the table to re-query
+      temp_pt <- current_pt()
+      current_pt(NULL)
+      current_pt(temp_pt)
+      
+    }, error = function(e) {
+      showNotification(paste("Update Error:", e$message), type = "error")
+    })
+  })
+  # Popup to rename a date column
+  observeEvent(input$rename_col_btn, {
+    df <- hot_to_r(input$history_table)
+    date_cols <- names(df)[-(1:2)] # Exclude category and test_name
+    
+    showModal(modalDialog(
+      title = "Edit Column Date",
+      selectInput("col_to_rename", "Select Column to Change", choices = date_cols),
+      dateInput("new_col_date", "New Date", value = Sys.Date()),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("confirm_rename", "Update Header", class = "btn-primary")
+      )
+    ))
+  })
+  
+  # Update the header in the reactive data
+  observeEvent(input$confirm_rename, {
+    new_date_str <- format(input$new_col_date, "%d %b %y")
+    # Logic here would involve updating the database dates for that patient 
+    # or modifying the live rhandsontable data
+    dbExecute(pool, "
+    UPDATE labs SET test_date = $1 
+    WHERE patient_id::text = $2 AND test_date = $3",
+              list(input$new_col_date, as.character(current_pt()$id), as.Date(input$col_to_rename, "%d %b %y"))
+    )
+    removeModal()
+    showNotification("Date header updated.")
+  })
   output$lab_ui <- renderUI({
     req(current_pt())
     card(
@@ -945,6 +1483,19 @@ server <- function(input, output, session) {
       actionButton("save_labs", "Save Lab Records", class="btn-success w-100 mt-3")
     )
   })
+  observeEvent(input$delete_col_btn, {
+    req(input$col_to_rename)
+    target_date <- as.Date(input$col_to_rename, format = "%d %b %y")
+    
+    dbExecute(pool, "DELETE FROM labs WHERE patient_id::text = $1 AND test_date = $2",
+              list(as.character(current_pt()$id), target_date))
+    
+    # Refresh UI
+    temp_pt <- current_pt()
+    current_pt(NULL)
+    current_pt(temp_pt)
+    showNotification("Column deleted.", type = "warning")
+  })
   
   observe({
     req(current_pt(), input$lab_date)
@@ -954,24 +1505,27 @@ server <- function(input, output, session) {
       updateNumericInput(session, paste0("lab_", make.names(t)), value = NA)
     }
     
-    # 2. Fetch results using integer casting for patient_id
+    # 2. Fetch results using updated column names
     tryCatch({
-      # Based on your sample, patient_id is numeric/integer
+      # Use COALESCE to prioritize the number, but fall back to text if it's a qualitative lab
       existing <- dbGetQuery(pool, 
-                             "SELECT test_name, value FROM labs WHERE patient_id = $1 AND test_date = $2", 
-                             list(as.integer(current_pt()$id), as.character(input$lab_date))
+                             "SELECT test_name, num_val, value_text 
+                              FROM labs 
+                              WHERE patient_id::text = $1 AND test_date = $2", 
+                             list(as.character(current_pt()$id), as.character(input$lab_date))
       )
       
       # 3. Match DB test_names to UI Input IDs
       if(nrow(existing) > 0) {
-        # Use a loop that matches the name exactly as stored in DB
         for(i in seq_len(nrow(existing))) {
           db_name <- existing$test_name[i]
           
-          # Only update if this test exists in your all_test_names list
           if (db_name %in% all_test_names) {
             input_id <- paste0("lab_", make.names(db_name))
-            updateNumericInput(session, input_id, value = existing$value[i])
+            
+            # Use the numeric value for the numericInput
+            # If it's a 'value_text' only result, it will stay NA in the numeric box
+            updateNumericInput(session, input_id, value = existing$num_val[i])
           }
         }
       }
@@ -1032,29 +1586,74 @@ server <- function(input, output, session) {
   observeEvent(input$save_labs, {
     req(current_pt())
     
-    # Map through your config to grab values
     res <- lapply(all_test_names, function(t) {
       val <- input[[paste0("lab_", make.names(t))]]
       if(is.null(val) || is.na(val)) return(NULL)
       
       data.frame(
-        patient_id = as.integer(current_pt()$id),
+        patient_id = as.character(current_pt()$id),
         test_date  = as.Date(input$lab_date),
-        test_name  = t, # Save the raw name from lab_config
-        value      = as.numeric(val)
+        test_name  = t,
+        num_val    = as.numeric(val), # Changed from 'value'
+        created_at = Sys.time()
       )
     }) %>% bind_rows()
     
     if(nrow(res) > 0) {
       tryCatch({
+        # Note: Added 'num_val' to the conflict update logic
         dbWriteTable(pool, "stg_labs", res, temporary = TRUE, overwrite = TRUE)
         dbExecute(pool, "
-        INSERT INTO labs (patient_id, test_date, test_name, value) 
-        SELECT patient_id, test_date, test_name, value FROM stg_labs 
+        INSERT INTO labs (patient_id, test_date, test_name, num_val, created_at) 
+        SELECT patient_id, test_date, test_name, num_val, created_at FROM stg_labs 
         ON CONFLICT (patient_id, test_date, test_name) 
-        DO UPDATE SET value = EXCLUDED.value
+        DO UPDATE SET num_val = EXCLUDED.num_val, created_at = EXCLUDED.created_at
       ")
-        showNotification("Data synchronized with database.", type = "success")
+        showNotification("Data synchronized.", type = "success")
+      }, error = function(e) {
+        showNotification(paste("Database Error:", e$message), type = "error")
+      })
+    }
+    
+    removeModal()
+    showNotification("Record added successfully", type = "message")
+  })
+  observeEvent(input$save_labs_modal, {
+    req(current_pt(), input$modal_lab_date)
+    
+    # Collect all inputs from the modal
+    lab_results <- lapply(lab_targets_raw$test_name, function(t) {
+      val <- input[[paste0("lab_", make.names(t))]]
+      if (is.null(val) || is.na(val)) return(NULL)
+      
+      data.frame(
+        patient_id = as.character(current_pt()$id),
+        test_date  = as.Date(input$modal_lab_date),
+        test_name  = t,
+        num_val    = as.numeric(val),
+        created_at = Sys.time()
+      )
+    }) %>% bind_rows()
+    
+    if (nrow(lab_results) > 0) {
+      tryCatch({
+        dbWriteTable(pool, "stg_labs_modal", lab_results, temporary = TRUE, overwrite = TRUE)
+        dbExecute(pool, "
+        INSERT INTO labs (patient_id, test_date, test_name, num_val, created_at) 
+        SELECT patient_id, test_date, test_name, num_val, created_at FROM stg_labs_modal 
+        ON CONFLICT (patient_id, test_date, test_name) 
+        DO UPDATE SET num_val = EXCLUDED.num_val, created_at = EXCLUDED.created_at
+      ")
+        
+        removeModal()
+        showNotification("Records synchronized.", type = "message")
+        
+        # Refresh the main flowsheet table
+        # Triggering a dummy change to current_pt forces the reactive to re-query
+        tmp <- current_pt()
+        current_pt(NULL)
+        current_pt(tmp)
+        
       }, error = function(e) {
         showNotification(paste("Database Error:", e$message), type = "error")
       })
@@ -1131,18 +1730,38 @@ server <- function(input, output, session) {
   })
   
   output$rx_search_results <- renderUI({
-    term <- rx_search_val() # Using the debounced value
-    req(term); req(nchar(term)>=2)
-    matches <- rx_master() %>% filter(grepl(term, brand_name, ignore.case=T) | grepl(term, generic, ignore.case=T)) %>% head(5)
+    term <- rx_search_val()
+    req(term); req(nchar(term) >= 2)
+    matches <- rx_master() %>% 
+      filter(grepl(term, brand_name, ignore.case=T) | grepl(term, generic, ignore.case=T)) %>% 
+      head(5)
     
-    if(nrow(matches)==0) return(actionButton("new_drug_modal", paste("Register '", term, "' as New Drug"), class="btn-warning w-100"))
+    if(nrow(matches) == 0) return(actionButton("new_drug_modal", paste("Register '", term, "' as New Drug"), class="btn-warning w-100"))
     
     lapply(1:nrow(matches), function(i) {
       d <- matches[i, ]
-      div(class="search-item", 
-          onclick=sprintf("Shiny.setInputValue('add_rx_id', %d, {priority:'event'})", d$id),
-          strong(d$brand_name), span(paste0(" (", d$generic, ")")),
-          div(class="meta-text", span("Dose:", d$dose), span("Freq:", d$freq), span("Route:", d$route), span("Dur:", d$duration)))
+      div(
+        style = "padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; background: white; transition: 0.2s;",
+        class = "search-item-hover",
+        onclick = sprintf("Shiny.setInputValue('add_rx_id', %d, {priority:'event'})", d$id),
+        
+        # Brand and Generic Row
+        div(
+          span(strong(toupper(d$brand_name), style="color: #2c3e50; font-size: 1.05rem;")),
+          span(paste0(" (", d$generic, ")"), style="color: #7f8c8d; font-size: 0.9rem;")
+        ),
+        
+        # Metadata Row with Vertical Separators
+        div(style = "margin-top: 5px; color: #16a085; font-size: 0.85rem; font-weight: 500;",
+            span(paste("Dose:", d$dose %||% "NA")),
+            span(" | ", style="color: #bdc3c7; font-weight: 300;"),
+            span(paste("Freq:", d$freq %||% "NA")),
+            span(" | ", style="color: #bdc3c7; font-weight: 300;"),
+            span(paste("Route:", d$route %||% "NA")),
+            span(" | ", style="color: #bdc3c7; font-weight: 300;"),
+            span(paste("Dur:", d$duration %||% "NA"))
+        )
+      )
     })
   })
   
@@ -1262,20 +1881,43 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$new_visit_btn, {
+    # 1. Reset Reactive State Variables
     note_state$active_visit_id <- NULL
     note_state$active_visit_date <- as.character(Sys.Date())
     
-    # Clear existing fields
+    # 2. Reset Clinical Notes Tab Inputs
     updateTextInput(session, "v_bp", value = "")
     updateNumericInput(session, "v_hr", value = NA)
     updateNumericInput(session, "v_weight", value = NA)
     updateTextInput(session, "v_temp", value = "")
     updateTextAreaInput(session, "clinic_notes", value = "")
     
-    # ADD THIS: Reset Follow-up to empty
-    # updateDateInput(session, "v_followup", value = NA)
+    # Reset the Follow-up Date (Important for the new UI)
+    updateDateInput(session, "v_followup", value = NA)
     
-    showNotification("New empty note initialized.", type = "message")
+    # 3. Reset Lab Flowsheet Modal Inputs
+    # This loops through your lab_targets.csv config to clear every numeric field
+    lapply(lab_targets_raw$test_name, function(t) {
+      updateNumericInput(session, paste0("lab_", make.names(t)), value = NA)
+    })
+    
+    # 4. Reset Prescription State
+    # Ensures the Rx table starts fresh for a new visit
+    if(exists("rx_meds")) {
+      rx_meds$df <- data.frame(
+        brand_name = character(),
+        dose = character(),
+        frequency = character(),
+        duration = character(),
+        stringsAsFactors = FALSE
+      )
+    }
+    
+    # 5. UI Feedback
+    showNotification("New empty record initialized for today.", type = "message")
+    
+    # Optional: Automatically switch the user to the Clinical Notes tab
+    # updateTabsetPanel(session, "main_nav", selected = "2. Clinical Notes")
   })
   
   
@@ -1290,9 +1932,4 @@ server <- function(input, output, session) {
 
 shinyApp(ui, server)
 
-
-
-# git add app.R
-# git commit -m "Fix: Forcing explicit DB connection parameters to avoid socket error"
-# git push origin main
 

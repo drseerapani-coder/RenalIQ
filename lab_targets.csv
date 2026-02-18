@@ -1,0 +1,60 @@
+category,test_name,low_limit,high_limit,unit
+Renal / Electrolytes,Creatinine,0.6,1.2,mg/dL
+Renal / Electrolytes,Blood urea,15,45,mg/dL
+Renal / Electrolytes,BUN,7,20,mg/dL
+Renal / Electrolytes,Potassium,3.5,5.1,mEq/L
+Renal / Electrolytes,Sodium,135,145,mEq/L
+Renal / Electrolytes,Bicarbonate,22,29,mEq/L
+Renal / Electrolytes,Uric Acid,3.4,7,mg/dL
+Minerals / Bone,Calcium,8.5,10.2,mg/dL
+Minerals / Bone,Phosphorus,2.5,4.5,mg/dL
+Minerals / Bone,Magnesium,1.7,2.2,mg/dL
+Minerals / Bone,iPTH,10,65,pg/mL
+Minerals / Bone,Vitamin D,30,100,ng/mL
+Liver Function,Total Bilirubin,0.1,1.2,mg/dL
+Liver Function,Indirect Bilirubin (unconjugated),,,mg/dL
+Liver Function,Direct Bilirubin (conjugated),,,mg/dL
+Liver Function,ALT,7,55,U/L
+Liver Function,AST,8,48,U/L
+Liver Function,ALP,40,129,U/L
+Liver Function,GGT,0,60,U/L
+Liver Function,Albumin,3.4,5.4,g/dL
+Hematology,Hb,13.5,17.5,g/dL
+Hematology,MCV,80,100,fL
+Hematology,Total leukocyte count,4000,11000,cells/mm3
+Hematology,Absolute neutrophil count,1500,8000,cells/mm3
+Hematology,Absolute lymphocyte count,1000,4800,cells/mm3
+Hematology,Absolute eosinophil count,,,cells/mm3
+Hematology,Platelet count,150000,450000,cells/mm3
+Metabolic / Iron,HbA1C,4,5.6,%
+Metabolic / Iron,Total Cholesterol,125,200,mg/dL
+Metabolic / Iron,LDL,0,100,mg/dL
+Metabolic / Iron,Triglycerides,,,mg/dL
+Metabolic / Iron,Ferritin,30,400,ng/mL
+Metabolic / Iron,Transferrin saturation index,20,50,%
+Metabolic / Iron,B12,200,900,pg/mL
+Metabolic / Iron,Folate,,,ng/mL
+Inflammatory/Misc,CRP,0,10,mg/L
+Inflammatory/Misc,ESR,0,22,mm/hr
+Inflammatory/Misc,LDH,140,280,U/L
+Inflammatory/Misc,CPK,,,U/L
+Inflammatory/Misc,TSH,0.4,4,mIU/L
+Inflammatory/Misc,T3,,,ng/dL
+Inflammatory/Misc,T4,,,ug/dL
+Immunosuppression,Tacrolimus,5,15,ng/mL
+Immunosuppression,Ciclosporin,100,400,ng/mL
+Immunosuppression,Everolimus,,,ng/mL
+Urine / Cultures,CUE:Protein,,,
+Urine / Cultures,CUE:Blood,,,
+Urine / Cultures,CUE:RBC,,,
+Urine / Cultures,CUE:WBC,,,
+Urine / Cultures,Urine PCR,,,
+Urine / Cultures,Urine MACR,,,
+Urine / Cultures,Urine Culture,,,
+Urine / Cultures,Blood culture,,,
+Specialized,Serum protein electrophoresis,,,
+Specialized,ANA-IFA,,,
+Specialized,ANA-Profile,,,
+Specialized,PR3 ANCA,,,
+Specialized,MPO ANCA,,,
+Specialized,US Abdomen,,,
