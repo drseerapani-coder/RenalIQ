@@ -14,6 +14,7 @@ library(glue)
 library(openai)
 library(tesseract)
 library(pdftools)
+library(shinycssloaders) # For mobile UI feedback
 
 lab_config <- list(
   "Renal / Electrolytes" = c("Creatinine", "Blood urea", "BUN", "Potassium", "Sodium", "Bicarbonate", "Uric Acid"),

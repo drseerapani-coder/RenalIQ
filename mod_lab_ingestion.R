@@ -31,7 +31,8 @@ lab_ingestion_ui <- function(id) {
         ),
         hr(),
         uiOutput(ns("commit_wrapper")),
-        DTOutput(ns("extracted_results_table"))
+        DTOutput(ns("extracted_results_table")) %>% 
+          shinycssloaders::withSpinner(color="#26A69A")
       )
     )
   )
