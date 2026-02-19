@@ -1881,28 +1881,28 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$new_visit_btn, {
-    # 1. Reset Reactive State Variables
+    # 1. Reset Internal State
     note_state$active_visit_id <- NULL
     note_state$active_visit_date <- as.character(Sys.Date())
     
-    # 2. Reset Clinical Notes Tab Inputs
+    # 2. Clear Clinical Notes Tab Inputs
     updateTextInput(session, "v_bp", value = "")
     updateNumericInput(session, "v_hr", value = NA)
     updateNumericInput(session, "v_weight", value = NA)
     updateTextInput(session, "v_temp", value = "")
     updateTextAreaInput(session, "clinic_notes", value = "")
     
-    # Reset the Follow-up Date (Important for the new UI)
+    # NEW: Reset the Follow-up Date picker
     updateDateInput(session, "v_followup", value = NA)
     
-    # 3. Reset Lab Flowsheet Modal Inputs
-    # This loops through your lab_targets.csv config to clear every numeric field
+    # 3. Clear Lab Flowsheet Modal Inputs
+    # We use make.names to match how the IDs were created in the UI
     lapply(lab_targets_raw$test_name, function(t) {
       updateNumericInput(session, paste0("lab_", make.names(t)), value = NA)
     })
     
-    # 4. Reset Prescription State
-    # Ensures the Rx table starts fresh for a new visit
+    # 4. Clear Prescription Reactive Dataframe
+    # This ensures the Rx table in Tab 4 starts empty
     if(exists("rx_meds")) {
       rx_meds$df <- data.frame(
         brand_name = character(),
@@ -1913,10 +1913,10 @@ server <- function(input, output, session) {
       )
     }
     
-    # 5. UI Feedback
-    showNotification("New empty record initialized for today.", type = "message")
+    # 5. UI Feedback & Navigation
+    showNotification("New empty record initialized.", type = "message")
     
-    # Optional: Automatically switch the user to the Clinical Notes tab
+    # Optional: Jump to the Clinical Notes tab automatically
     # updateTabsetPanel(session, "main_nav", selected = "2. Clinical Notes")
   })
   
